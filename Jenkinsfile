@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "myapp:latest"
-        REGISTRY = "your-dockerhub-username/myapp"
+        IMAGE_NAME = "myapp"
+        DOCKER_HUB_USER = "your_dockerhub_username"
+        DOCKER_HUB_PASS = credentials('dockerhub-credentials')  // Jenkins credential ID
     }
 
     stages {
-        stage('Clone from Git') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/yourusername/yourrepo.git'
             }
@@ -16,42 +17,37 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
+                    sh 'docker build -t $IMAGE_NAME:latest .'
                 }
             }
         }
 
-        stage('Run Tests (Optional)') {
-            steps {
-                sh 'echo "Running tests..."'
-                // Add test scripts if any
-            }
-        }
-
-        stage('Tag & Push to DockerHub') {
+        stage('Login to Docker Hub') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh "echo $PASS | docker login -u $USER --password-stdin"
-                        sh "docker tag ${DOCKER_IMAGE} ${REGISTRY}:latest"
-                        sh "docker push ${REGISTRY}:latest"
-                    }
+                    sh 'echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin'
                 }
             }
         }
 
-        stage('Deploy (Optional)') {
+        stage('Push Image to Docker Hub') {
             steps {
-                echo "Deploying container..."
-                // Example: sh "docker run -d -p 5000:5000 ${REGISTRY}:latest"
+                script {
+                    sh 'docker tag $IMAGE_NAME:latest $DOCKER_HUB_USER/$IMAGE_NAME:latest'
+                    sh 'docker push $DOCKER_HUB_USER/$IMAGE_NAME:latest'
+                }
             }
         }
-    }
 
-    post {
-        always {
-            echo "Cleaning up..."
-            sh "docker system prune -f"
+        stage('Deploy Container') {
+            steps {
+                script {
+                    // Stop old container if running
+                    sh 'docker rm -f $IMAGE_NAME || true'
+                    // Run new container
+                    sh 'docker run -d -p 5000:5000 --name $IMAGE_NAME $DOCKER_HUB_USER/$IMAGE_NAME:latest'
+                }
+            }
         }
     }
 }
