@@ -1,14 +1,6 @@
-# Use an official Python runtime
-FROM python:3.9-slim
-
-# Set working directory
+# Example: Dockerfile
+FROM python:3.10-slim
 WORKDIR /app
-
-# Copy source code
 COPY . .
-
-# Install dependencies
-RUN pip install --no-cache-dir flask
-
-# Run the application
+RUN pip install -r requirements.txt
 CMD ["python", "app.py"]
